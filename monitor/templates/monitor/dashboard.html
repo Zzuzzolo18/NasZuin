@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Monitor Dashboard</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom CSS -->
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'monitor/css/style.css' %}">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{% url 'index' %}"><i class="bi bi-hdd-network"></i> HomeNAS</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'index' %}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/files">My Files</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'two_factor:profile' %}">Security (2FA)</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'admin:index' %}">Admin</a>
+                    </li>
+                    <li class="nav-item">
+                        <form action="{% url 'logout' %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-link nav-link"
+                                style="text-decoration: none;">Logout</button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% block content %}
+        <!-- System Info -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card glass-card">
+                    <div class="card-header">System Information</div>
+                    <div class="card-body">
+                        <div class="row text-center" id="system-info">
+                            <div class="col-md-3"><strong>Node:</strong> <span id="sys-node">-</span></div>
+                            <div class="col-md-3"><strong>OS:</strong> <span id="sys-os">-</span></div>
+                            <div class="col-md-3"><strong>Release:</strong> <span id="sys-release">-</span></div>
+                            <div class="col-md-3"><strong>Uptime:</strong> <span id="sys-uptime">-</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card glass-card">
+                    <div class="card-header">CPU Usage</div>
+                    <div class="card-body">
+                        <div style="position: relative; height: 200px;">
+                            <canvas id="cpuChart"></canvas>
+                        </div>
+                        <div class="text-center mt-3">
+                            <span class="stat-value" id="cpu-val">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card glass-card">
+                    <div class="card-header">Memory Usage</div>
+                    <div class="card-body">
+                        <div style="position: relative; height: 200px;">
+                            <canvas id="memChart"></canvas>
+                        </div>
+                        <div class="text-center mt-3">
+                            <span class="stat-value" id="mem-val">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card glass-card">
+                    <div class="card-header">Disk Usage (Root)</div>
+                    <div class="card-body">
+                        <div style="position: relative; height: 200px;">
+                            <canvas id="diskChart"></canvas>
+                        </div>
+                        <div class="text-center mt-3">
+                            <span class="stat-value" id="disk-val">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Storage Details -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card glass-card">
+                    <div class="card-header">Storage Partitions</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="disk-table">
+                                <thead>
+                                    <tr>
+                                        <th>Device</th>
+                                        <th>Mount Point</th>
+                                        <th>FS Type</th>
+                                        <th>Total</th>
+                                        <th>Used</th>
+                                        <th>Free</th>
+                                        <th>Usage %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endblock %}
+    </div>
+
+    <script>
+        // Chart Configuration
+        Chart.defaults.color = '#e0e0e0';
+        Chart.defaults.scale.grid.color = 'rgba(255, 255, 255, 0.1)';
+
+        // CPU Chart (Doughnut)
+        const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+        const cpuChart = new Chart(cpuCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Used', 'Free'],
+                datasets: [{
+                    data: [0, 100],
+                    backgroundColor: ['#ff4081', 'rgba(255, 255, 255, 0.1)'], // Pink
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                cutout: '75%',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // Memory Chart (Pie)
+        const memCtx = document.getElementById('memChart').getContext('2d');
+        const memChart = new Chart(memCtx, {
+            type: 'doughnut', // Changed to doughnut for consistency
+            data: {
+                labels: ['Used', 'Available'],
+                datasets: [{
+                    data: [0, 100],
+                    backgroundColor: ['#e040fb', 'rgba(255, 255, 255, 0.1)'], // Purple
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                cutout: '75%',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // Disk Chart (Doughnut - showing first partition usually C:)
+        const diskCtx = document.getElementById('diskChart').getContext('2d');
+        const diskChart = new Chart(diskCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Used', 'Free'],
+                datasets: [{
+                    data: [0, 100],
+                    backgroundColor: ['#00e5ff', 'rgba(255, 255, 255, 0.1)'], // Cyan
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                cutout: '75%',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/stats/');
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+
+                // Update System Info
+                document.getElementById('sys-node').textContent = data.system.node;
+                document.getElementById('sys-os').textContent = data.system.system;
+                document.getElementById('sys-release').textContent = data.system.release;
+                document.getElementById('sys-uptime').textContent = data.system.uptime;
+                document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+
+                // Update CPU
+                cpuChart.data.datasets[0].data = [data.cpu, 100 - data.cpu];
+                cpuChart.update();
+                document.getElementById('cpu-val').textContent = data.cpu + '%';
+
+                // Update Memory
+                memChart.data.datasets[0].data = [data.memory.used, data.memory.available];
+                memChart.update();
+                document.getElementById('mem-val').textContent = data.memory.percent + '%';
+
+                // Update Disk (primary) and Table
+                const disks = data.disk;
+                if (disks.length > 0) {
+                    const primary = disks[0]; // Usually C: on Windows
+                    diskChart.data.datasets[0].data = [primary.used, primary.free];
+                    diskChart.update();
+                    document.getElementById('disk-val').textContent = primary.percent + '%';
+                }
+
+                // Update Disk Table
+                const tbody = document.querySelector('#disk-table tbody');
+                tbody.innerHTML = '';
+                disks.forEach(d => {
+                    const row = `
+                        <tr>
+                            <td>${d.device}</td>
+                            <td>${d.mountpoint}</td>
+                            <td>${d.fstype}</td>
+                            <td>${formatBytes(d.total)}</td>
+                            <td>${formatBytes(d.used)}</td>
+                            <td>${formatBytes(d.free)}</td>
+                            <td>
+                                <div class="progress">
+                                    <div class="progress-bar bg-${d.percent > 90 ? 'danger' : 'primary'}" 
+                                         role="progressbar" 
+                                         style="width: ${d.percent}%" 
+                                         aria-valuenow="${d.percent}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        ${d.percent}%
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+            }
+        }
+
+        // Poll every 3 seconds
+        setInterval(updateStats, 3000);
+        updateStats(); // Initial call
+
+        // Add chart animations on load (Chart.js default)
+    </script>
+</body>
+
+</html>

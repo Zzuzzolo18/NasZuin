@@ -1,0 +1,27 @@
+# Django & Web Framework
+Django==5.0.1
+
+# Task Queue
+celery==5.3.6
+redis==5.0.1
+
+# Environment
+python-dotenv==1.0.0
+
+# Authentication & Security
+django-two-factor-auth==1.15.5
+phonenumbers==8.13.29
+django-otp==1.2.4
+qrcode==7.4.2
+django-axes==6.3.0
+django-csp==3.7
+
+# File Encryption
+cryptography==46.0.4
+
+# System Monitoring
+psutil==7.2.2
+paramiko==3.4.0
+# Production Server
+waitress==2.1.2
+whitenoise==6.6.0

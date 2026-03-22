@@ -1,0 +1,30 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <rect x="40" y="30" width="120" height="140" rx="10" ry="10" fill="#333333" stroke="#222222" stroke-width="2"/>
+  
+  <rect x="145" y="40" width="10" height="120" fill="#444444"/>
+  <line x1="150" y1="50" x2="150" y2="150" stroke="#222222" stroke-width="2" stroke-dasharray="5,5"/>
+
+  <g transform="translate(50, 45)">
+    <rect x="0" y="0" width="85" height="25" rx="3" fill="#555555" stroke="#222222" stroke-width="1"/>
+    <rect x="5" y="8" width="10" height="10" rx="1" fill="#222222"/> <circle cx="75" cy="12.5" r="4" fill="#00ff00"/> <rect x="0" y="30" width="85" height="25" rx="3" fill="#555555" stroke="#222222" stroke-width="1"/>
+    <rect x="5" y="38" width="10" height="10" rx="1" fill="#222222"/>
+    <circle cx="75" cy="42.5" r="4" fill="#00ff00"/>
+
+    <rect x="0" y="60" width="85" height="25" rx="3" fill="#555555" stroke="#222222" stroke-width="1"/>
+    <rect x="5" y="68" width="10" height="10" rx="1" fill="#222222"/>
+    <circle cx="75" cy="72.5" r="4" fill="#00ff00"/>
+
+    <rect x="0" y="90" width="85" height="25" rx="3" fill="#555555" stroke="#222222" stroke-width="1"/>
+    <rect x="5" y="98" width="10" height="10" rx="1" fill="#222222"/>
+    <circle cx="75" cy="102.5" r="4" fill="#ffaa00"/> </g>
+
+  <g transform="translate(138, 45)">
+      <circle cx="0" cy="10" r="6" fill="#222222" stroke="#555555"/>
+      <circle cx="0" cy="10" r="3" fill="#0099ff"/> <g transform="translate(-8, 100) scale(0.8)">
+        <path d="M10,2 L10,8 L4,8 L4,14 L8,14 L8,20 L12,20 L12,14 L16,14 L16,8 L10,8" fill="#0099ff"/>
+        <circle cx="10" cy="2" r="2" fill="#0099ff"/>
+        <circle cx="8" cy="22" r="2" fill="#0099ff"/>
+        <circle cx="12" cy="22" r="2" fill="#0099ff"/>
+      </g>
+  </g>
+</svg>
