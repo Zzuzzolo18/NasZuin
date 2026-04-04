@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Activity, HardDrive, Cpu, Thermometer, Clock, Database, RefreshCw, Loader2, CheckCircle2, XCircle, Archive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { apiRequest } from "@/lib/api"
+
 export default function Dashboard() {
     const [stats, setStats] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -13,6 +14,7 @@ export default function Dashboard() {
     const [moveMessage, setMoveMessage] = useState('')
     const pollRef = useRef(null)
     const movePollRef = useRef(null)
+
     const fetchStats = async () => {
         try {
             const response = await fetch('/monitor/api/stats/')
@@ -27,20 +29,25 @@ export default function Dashboard() {
             setLoading(false)
         }
     }
+
     // Poll scan task status with timeout protection
     const pollTaskStatus = (scanTaskId) => {
+        sessionStorage.setItem('activeScanTaskId', scanTaskId)
         const MAX_POLL_DURATION = 10 * 60 * 1000 // 10 minutes max
         const POLL_INTERVAL = 5000 // 5 seconds between polls
         const MAX_ERRORS = 5
         const startTime = Date.now()
         let errorCount = 0
+
         const checkStatus = async () => {
             // Safety: stop after max duration
             if (Date.now() - startTime > MAX_POLL_DURATION) {
                 setScanStatus('failed')
                 setScanMessage('⏰ Scan timed out (no response in 10 minutes). Check server logs.')
+                sessionStorage.removeItem('activeScanTaskId')
                 return
             }
+
             try {
                 const scanRes = await apiRequest(`/api/files/scan/status/?task_id=${scanTaskId}`)
                 errorCount = 0 // Reset on success
@@ -49,10 +56,12 @@ export default function Dashboard() {
                     setScanStatus('completed')
                     setScanMessage(`✅ ${scanRes.result}`)
                     fetchStats()
+                    sessionStorage.removeItem('activeScanTaskId')
                     return // Stop polling
                 } else if (scanRes.status === 'FAILURE') {
                     setScanStatus('failed')
                     setScanMessage(`❌ Scan failed: ${scanRes.error || 'Unknown error'}`)
+                    sessionStorage.removeItem('activeScanTaskId')
                     return // Stop polling
                 } else {
                     setScanStatus('running')
@@ -65,6 +74,7 @@ export default function Dashboard() {
                 if (errorCount >= MAX_ERRORS) {
                     setScanStatus('failed')
                     setScanMessage(`❌ Lost connection to server after ${MAX_ERRORS} errors`)
+                    sessionStorage.removeItem('activeScanTaskId')
                     return // Stop polling
                 }
             }
@@ -76,17 +86,21 @@ export default function Dashboard() {
         // Start first check immediately
         checkStatus()
     }
+
     // Poll move task status (reuses same pattern as scan)
     const pollMoveStatus = (taskId) => {
+        sessionStorage.setItem('activeMoveTaskId', taskId)
         const MAX_POLL_DURATION = 30 * 60 * 1000 // 30 minutes (archiving can take long)
         const POLL_INTERVAL = 5000
         const MAX_ERRORS = 5
         const startTime = Date.now()
         let errorCount = 0
+
         const checkStatus = async () => {
             if (Date.now() - startTime > MAX_POLL_DURATION) {
                 setMoveStatus('failed')
                 setMoveMessage('⏰ Archive timed out (30 minutes). Check server logs.')
+                sessionStorage.removeItem('activeMoveTaskId')
                 return
             }
             try {
@@ -96,10 +110,12 @@ export default function Dashboard() {
                     setMoveStatus('completed')
                     setMoveMessage(`✅ ${res.result}`)
                     fetchStats()
+                    sessionStorage.removeItem('activeMoveTaskId')
                     return
                 } else if (res.status === 'FAILURE') {
                     setMoveStatus('failed')
                     setMoveMessage(`❌ Archive failed: ${res.error || 'Unknown error'}`)
+                    sessionStorage.removeItem('activeMoveTaskId')
                     return
                 } else {
                     setMoveStatus('running')
@@ -111,6 +127,7 @@ export default function Dashboard() {
                 if (errorCount >= MAX_ERRORS) {
                     setMoveStatus('failed')
                     setMoveMessage(`❌ Lost connection to server`)
+                    sessionStorage.removeItem('activeMoveTaskId')
                     return
                 }
             }
@@ -118,12 +135,29 @@ export default function Dashboard() {
         }
         checkStatus()
     }
-    // Single useEffect for stats polling + cleanup
+
+    // Single useEffect for stats polling + resume active tasks
     useEffect(() => {
         fetchStats()
+
+        // Resume polling if there were active tasks before page refresh
+        const savedScanId = sessionStorage.getItem('activeScanTaskId')
+        if (savedScanId) {
+            setScanStatus('running')
+            setScanMessage('Resuming scan status...')
+            pollTaskStatus(savedScanId)
+        }
+        const savedMoveId = sessionStorage.getItem('activeMoveTaskId')
+        if (savedMoveId) {
+            setMoveStatus('running')
+            setMoveMessage('Resuming archive status...')
+            pollMoveStatus(savedMoveId)
+        }
+
         const pollingInterval = import.meta.env.VITE_MONITOR_POLLING_INTERVAL
             ? parseInt(import.meta.env.VITE_MONITOR_POLLING_INTERVAL)
             : 15000
+
         const interval = setInterval(fetchStats, pollingInterval)
         return () => {
             clearInterval(interval)
@@ -131,8 +165,10 @@ export default function Dashboard() {
             if (movePollRef.current) clearTimeout(movePollRef.current)
         }
     }, [])
+
     if (loading && !stats) return <div className="p-8">Loading dashboard...</div>
     if (error && !stats) return <div className="p-8 text-red-500">{error}</div>
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -222,6 +258,7 @@ export default function Dashboard() {
                     </Button>
                 </div>
             </div>
+
             {/* Scan Status Banner */}
             {scanMessage && (
                 <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
@@ -243,6 +280,7 @@ export default function Dashboard() {
                     )}
                 </div>
             )}
+
             {/* Archive Status Banner */}
             {moveMessage && (
                 <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
@@ -264,6 +302,7 @@ export default function Dashboard() {
                     )}
                 </div>
             )}
+
             {/* Status Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
@@ -317,6 +356,7 @@ export default function Dashboard() {
                     </CardContent>
                 </Card>
             </div>
+
             {/* Main Content Sections */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                 <Card className="col-span-4">
@@ -339,6 +379,7 @@ export default function Dashboard() {
                         </div>
                     </CardContent>
                 </Card>
+
                 {/* Disk Details Table */}
                 <Card className="col-span-3">
                     <CardHeader>
@@ -388,6 +429,7 @@ export default function Dashboard() {
                                     )}
                                 </div>
                             </div>
+
                             {/* Other Partitions Section */}
                             <div>
                                 <h4 className="mb-2 text-sm font-semibold tracking-tight text-muted-foreground">System & Other</h4>

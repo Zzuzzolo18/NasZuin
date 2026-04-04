@@ -6,6 +6,7 @@ import shutil
 from datetime import timedelta
 from django.utils import timezone
 from django.db.utils import OperationalError
+from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -138,8 +139,15 @@ def move_old_files_to_hdd(age_days=30):
         
         for f in files_to_move:
             source_path = os.path.join(hot_tier.mount_point, f.relative_path)
-            # Add .enc extension to destination
-            dest_rel_path = f.relative_path + '.enc'
+            
+            # Check encryption setting
+            use_encryption = getattr(settings, 'ENCRYPT_COLD_STORAGE', True)
+            
+            if use_encryption:
+                dest_rel_path = f.relative_path + '.enc'
+            else:
+                dest_rel_path = f.relative_path
+                
             dest_path = os.path.join(cold_tier.mount_point, dest_rel_path)
             
             # Verify source exists and is not a symlink
@@ -151,26 +159,29 @@ def move_old_files_to_hdd(age_days=30):
                 # Ensure destination directory exists
                 os.makedirs(os.path.dirname(dest_path), exist_ok=True)
                 
-                # Encrypt content directly to destination
-                # encrypt_file now returns the destination path
-                encrypt_file(source_path, dest_path)
+                # Move / Encrypt file depending on the setting
+                if use_encryption:
+                    encrypt_file(source_path, dest_path)
+                    logger.info(f"Encrypted {f.name} for COLD tier.")
+                else:
+                    shutil.copy2(source_path, dest_path)
+                    logger.info(f"Copied {f.name} in plain text for COLD tier.")
                 
                 # Verification (check if dest file exists and has size)
                 if os.path.exists(dest_path) and os.path.getsize(dest_path) > 0:
                     os.remove(source_path)
-                    # Point symlink to the encrypted file (note: user will see .enc path if resolving link)
-                    # Alternatively, could point to a decrypted view FUSE mount if existed, but for now direct link.
+                    # Point symlink to the appropriate file
                     os.symlink(dest_path, source_path)
                     
                     # Update Database
                     f.tier = cold_tier
-                    f.is_encrypted = True
-                    f.relative_path = dest_rel_path # Update path to include .enc
+                    f.is_encrypted = use_encryption
+                    f.relative_path = dest_rel_path 
                     f.save()
                     moved_count += 1
-                    logger.info(f"Moved and encrypted {f.name} to COLD tier.")
+                    logger.info(f"Successfully moved {f.name} to COLD tier.")
                 else:
-                    logger.error(f"Encryption/Write failed for {f.name}")
+                    logger.error(f"Write failed for {f.name}")
                     if os.path.exists(dest_path):
                         os.remove(dest_path) # Cleanup failed copy
                     errors += 1

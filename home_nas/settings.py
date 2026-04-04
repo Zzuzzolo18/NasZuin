@@ -24,7 +24,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-dev-key')
+# If the variable exists but is empty (e.g. from an empty .env value), fallback to the dev key
+SECRET_KEY = os.getenv('SECRET_KEY', '').strip() or 'django-insecure-fallback-dev-key'
+
+# File Encryption Key used by Fernet
+ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY', '').strip() or None
+
+# Whether to encrypt files when moving to COLD storage
+ENCRYPT_COLD_STORAGE = os.getenv('ENCRYPT_COLD_STORAGE', 'True').lower() in ('true', '1', 't')
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
@@ -98,15 +106,37 @@ AUTHENTICATION_BACKENDS = [
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.getenv('DB_PATH', BASE_DIR / 'db.sqlite3'),
-        'OPTIONS': {
-            'timeout': 30,  # Wait up to 30s for DB lock release
-        },
+# Database configurations
+# Enable dynamic configuration based on DB_ENGINE
+db_engine = os.getenv('DB_ENGINE', 'django.db.backends.sqlite3')
+
+if db_engine == 'django.db.backends.postgresql':
+    DATABASES = {
+        'default': {
+            'ENGINE': db_engine,
+            'NAME': os.getenv('POSTGRES_DB', 'naszuin'),
+            'USER': os.getenv('POSTGRES_USER', 'nasuser'),
+            'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'naspassword'),
+            'HOST': os.getenv('POSTGRES_HOST', 'naszuin-postgres'),
+            'PORT': os.getenv('POSTGRES_PORT', '5432'),
+        }
     }
-}
+else:
+    # Default to sqlite3 but placed safely inside /app/config/ if we are in Docker
+    # otherwise defaults to BASE_DIR locally.
+    default_db_path = BASE_DIR / 'db.sqlite3'
+    if os.path.exists('/app/config'):
+        default_db_path = '/app/config/db.sqlite3'
+        
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.getenv('DB_PATH', str(default_db_path)),
+            'OPTIONS': {
+                'timeout': 30,  # Wait up to 30s for DB lock release
+            },
+        }
+    }
 
 
 # Password validation
@@ -162,8 +192,8 @@ STATICFILES_DIRS = [
 ]
 
 # Celery Configuration Options
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'

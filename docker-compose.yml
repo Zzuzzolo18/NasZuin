@@ -1,0 +1,206 @@
+# ================================
+# VOLUMI E NETWORK
+# ================================
+volumes:
+  nasconfig:
+  immich_pgdata:
+  naszuin_pgdata:
+
+networks:
+  home_network:
+    driver: bridge
+
+services:
+
+  # ================================
+  # NASZUIN STACK
+  # ================================
+  naszuin-redis:
+    image: redis:7-alpine
+    container_name: naszuin_redis
+    restart: always
+    networks:
+      - home_network
+
+  naszuin-postgres:
+    image: postgres:15-alpine
+    container_name: naszuin_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-naszuin}
+      POSTGRES_USER: ${POSTGRES_USER:-nasuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
+    volumes:
+      - naszuin_pgdata:/var/lib/postgresql/data
+    networks:
+      - home_network
+
+  naszuin-backend:
+    build: .
+    container_name: naszuin_backend
+    # Esegui le migrazioni e la creazione dell'admin prima di lanciare Gunicorn
+    command: bash -c "python manage.py migrate && python init_admin.py && gunicorn home_nas.wsgi:application --bind 0.0.0.0:8000"
+    restart: always
+    volumes:
+      - nasconfig:/app/config
+      - /mnt/nvme/naszuin:/mnt/nvme
+      - /mnt/hdd1/naszuin:/mnt/hdd1
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      POSTGRES_DB: ${POSTGRES_DB:-naszuin}
+      POSTGRES_USER: ${POSTGRES_USER:-nasuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
+      POSTGRES_HOST: ${POSTGRES_HOST:-naszuin-postgres} 
+      SSD_MOUNT_POINT: ${SSD_MOUNT_POINT:-/mnt/nvme}
+      HDD_MOUNT_POINT: ${HDD_MOUNT_POINT:-/mnt/hdd1}
+      BASE_STORAGE_PATH: ${BASE_STORAGE_PATH:-/mnt/nvme}
+      DEBUG: ${DEBUG:-True}
+      SECRET_KEY: ${NASZUIN_SECRET_KEY}
+      ENCRYPTION_KEY: ${NASZUIN_ENCRYPTION_KEY}
+      ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
+      ADMIN_USERNAME: ${NASZUIN_ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${NASZUIN_ADMIN_PASSWORD:-password}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-default@provider.eu}
+    networks:
+      - home_network
+    depends_on:
+      - naszuin-redis
+      - naszuin-postgres
+
+  naszuin-celery-worker:
+    build: .
+    container_name: naszuin_celery_worker
+    command: celery -A home_nas worker -l info
+    restart: always
+    volumes:
+      - nasconfig:/app/config
+      - /mnt/nvme/naszuin:/mnt/nvme
+      - /mnt/hdd1/naszuin:/mnt/hdd1
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      POSTGRES_DB: ${POSTGRES_DB:-naszuin}
+      POSTGRES_USER: ${POSTGRES_USER:-nasuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
+      POSTGRES_HOST: ${POSTGRES_HOST:-naszuin-postgres} 
+      SSD_MOUNT_POINT: ${SSD_MOUNT_POINT:-/mnt/nvme}
+      HDD_MOUNT_POINT: ${HDD_MOUNT_POINT:-/mnt/hdd1}
+      BASE_STORAGE_PATH: ${BASE_STORAGE_PATH:-/mnt/nvme}
+      SECRET_KEY: ${NASZUIN_SECRET_KEY}
+      ENCRYPTION_KEY: ${NASZUIN_ENCRYPTION_KEY}
+      ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
+    networks:
+      - home_network
+    depends_on:
+      - naszuin-redis
+      - naszuin-backend
+
+  naszuin-celery-beat:
+    build: .
+    container_name: naszuin_celery_beat
+    command: celery -A home_nas beat -l info --schedule /app/config/celerybeat-schedule
+    restart: always
+    volumes:
+      - nasconfig:/app/config
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      POSTGRES_DB: ${POSTGRES_DB:-naszuin}
+      POSTGRES_USER: ${POSTGRES_USER:-nasuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
+      POSTGRES_HOST: ${POSTGRES_HOST:-naszuin-postgres}
+      SECRET_KEY: ${NASZUIN_SECRET_KEY}
+      ENCRYPTION_KEY: ${NASZUIN_ENCRYPTION_KEY}
+      ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
+    networks:
+      - home_network
+    depends_on:
+      - naszuin-redis
+      - naszuin-backend
+
+  naszuin-sftp:
+    build: .
+    container_name: naszuin_sftp
+    command: python manage.py run_sftp --port 2222 --keyfile /app/config/host.key
+    restart: always
+    ports:
+      - "2222:2222"
+    volumes:
+      - nasconfig:/app/config
+      - /mnt/nvme/naszuin:/mnt/nvme
+      - /mnt/hdd1/naszuin:/mnt/hdd1
+    environment:
+      - DB_ENGINE= ${DB_ENGINE:-django.db.backends.postgresql}
+      - POSTGRES_DB= ${POSTGRES_DB:-naszuin}
+      - POSTGRES_USER= ${POSTGRES_USER:-nasuser}
+      - POSTGRES_PASSWORD= ${POSTGRES_PASSWORD:-naspassword}
+      - POSTGRES_HOST= ${POSTGRES_HOST:-naszuin-postgres} 
+      - SSD_MOUNT_POINT= ${SSD_MOUNT_POINT:-/mnt/nvme}
+      - HDD_MOUNT_POINT= ${HDD_MOUNT_POINT:-/mnt/hdd1}
+      - BASE_STORAGE_PATH= ${BASE_STORAGE_PATH:-/mnt/nvme}
+      - SECRET_KEY= ${NASZUIN_SECRET_KEY}
+      - ENCRYPTION_KEY= ${NASZUIN_ENCRYPTION_KEY}
+      - ENCRYPT_COLD_STORAGE= ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
+    networks:
+      - home_network
+    depends_on:
+      - naszuin-backend
+
+  naszuin-frontend:
+    build: ./frontend
+    container_name: naszuin_frontend
+    restart: always
+    ports:
+      - "80:80"
+    networks:
+      - home_network
+    depends_on:
+      - naszuin-backend
+
+  # ================================
+  # IMMICH STACK (Senza Machine Learning)
+  # ================================
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:release
+    command: [ "start.sh", "immich" ]
+    volumes:
+      - /mnt/hdd1/immich:/usr/src/app/upload 
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "2283:2283"
+    depends_on:
+      - immich-redis
+      - immich-postgres
+    restart: always
+    environment:
+      DB_HOSTNAME: ${IMMICH_DB_HOSTNAME:-immich-postgres}
+      DB_USERNAME: ${IMMICH_POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${IMMICH_POSTGRES_PASSWORD:-postgrespassword}
+      DB_DATABASE_NAME: ${IMMICH_POSTGRES_DB:-immich}
+      REDIS_HOSTNAME: immich-redis # look at the name of next container 
+      ENABLE_MACHINE_LEARNING: "false"
+    networks:
+      - home_network
+
+  immich-redis:
+    container_name: immich_redis
+    image: redis:6.2-alpine
+    restart: always
+    networks:
+      - home_network
+
+  immich-postgres:
+    container_name: immich_postgres
+    image: tensorchord/pgvecto-rs:pg14-v0.2.0
+    environment:
+      POSTGRES_PASSWORD: ${IMMICH_POSTGRES_PASSWORD:-postgrespassword}
+      POSTGRES_USER: ${IMMICH_POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${IMMICH_POSTGRES_DB:-immich}
+      POSTGRES_HOST_AUTH_METHOD: ${IMMICH_POSTGRES_HOST_AUTH_METHOD:-trust}
+    volumes:
+      - immich_pgdata:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - home_network

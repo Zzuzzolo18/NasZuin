@@ -3,7 +3,6 @@ import { MoreVertical, CheckCircle2, Circle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileActionsMenu } from "./FileActionsMenu"
-import { formatFileSize } from '@/lib/format'
 
 export function FileList({ files, onFileClick, isSelectionMode, selectedFileIds, onToggleSelection, onDownload, onDelete, onShare }) {
     return (
@@ -54,7 +53,7 @@ export function FileList({ files, onFileClick, isSelectionMode, selectedFileIds,
                         <div className="col-span-2 text-xs text-muted-foreground truncate">{file.date}</div>
                         <div className="col-span-2 text-xs text-muted-foreground truncate capitalize">{file.type}</div>
                         <div className="col-span-2 text-xs text-muted-foreground text-right flex items-center justify-end gap-2">
-                            <span>{file.size_bytes ? formatFileSize(file.size_bytes) : '-'}</span>
+                            <span>{file.size || '-'}</span>
                             {!isSelectionMode && (
                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                     <FileActionsMenu

@@ -108,7 +108,7 @@ export default function FileManager() {
 
     return (
         <div
-            className="h-full flex flex-col space-y-4 relative min-h-0 overflow-hidden"
+            className="flex-1 flex flex-col space-y-4 relative min-h-0 overflow-hidden"
             onDrop={ops.handleDrop}
             onDragOver={ops.handleDragOver}
             onDragLeave={ops.handleDragLeave}
@@ -289,9 +289,10 @@ export default function FileManager() {
                 <FileBreadcrumb path={currentPath} onNavigate={(item) => handleNavigate(item || { path: "" })} />
             </div>
 
-            <div className="flex-1 flex min-h-0 gap-4 overflow-hidden">
+            <div className="flex-1 flex min-h-0 gap-4">
                 {/* File Area */}
-                <div className="flex-1 overflow-auto rounded-lg border bg-card/50 p-4">
+                <div className="flex-1 relative rounded-lg border bg-card/50">
+                    <div className="absolute inset-0 overflow-auto p-4">
                     {/* Search Results View */}
                     {search.searchResults !== null ? (
                         search.isSearching ? (
@@ -361,6 +362,7 @@ export default function FileManager() {
                             onShare={handleShare}
                         />
                     )}
+                    </div>
                 </div>
 
                 {/* Details Sidebar / Drawer */}
@@ -373,7 +375,8 @@ export default function FileManager() {
                         />
 
                         {/* The Panel */}
-                        <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-80 bg-background p-4 shadow-xl lg:static lg:p-0 lg:shadow-none lg:border-l overflow-y-auto animate-in slide-in-from-right lg:animate-none border-l h-full">
+                        <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-80 bg-background shadow-xl lg:static lg:shadow-none lg:border-l lg:animate-none animate-in slide-in-from-right relative h-full">
+                            <div className="absolute inset-0 overflow-y-auto p-4 lg:p-0">
                             <div className="flex justify-end lg:hidden mb-2">
                                 <Button variant="ghost" size="icon" onClick={() => setSelectedFile(null)}>
                                     <X className="h-4 w-4" />
@@ -386,6 +389,7 @@ export default function FileManager() {
                                 onDownload={ops.handleDownload}
                                 onDelete={handleDelete}
                             />
+                            </div>
                         </div>
                     </>
                 )}

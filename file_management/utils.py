@@ -2,23 +2,43 @@ import os
 from cryptography.fernet import Fernet
 from django.conf import settings
 
-def generate_key():
+# load important variables
+# look at settings.py for the actual variable used. We don't define it here directly to avoid confusion.
+FILE_NAME_EK = "secret.key"
+
+
+def generate_key(key_path):
     """
-    Generates a key and saves it into a file
+    Generates a key and saves it into the specified key_path
     """
     key = Fernet.generate_key()
-    with open("secret.key", "wb") as key_file:
+    with open(key_path, "wb") as key_file:
         key_file.write(key)
 
 def load_key():
     """
-    Loads the key from the current directory named `secret.key`
+    Loads the encryption key. Priority is:
+    1. settings.ENCRYPTION_KEY environment variable.
+    2. secret.key inside /app/config (for docker persistent volume).
+    3. secret.key in the current directory (local development).
     """
-    # In production, this should be securely managed, e.g., environment variable or dedicated secrets manager
-    if not os.path.exists("secret.key"):
-        generate_key()
+    # 1. Try to get it from settings/environment
+    if getattr(settings, 'ENCRYPTION_KEY', None):
+        key = settings.ENCRYPTION_KEY
+        return key.encode() if isinstance(key, str) else key
+
+    # 2. Check if we are inside Docker with /app/config mounted, otherwise use current dir
+    config_dir = '/app/config'
+    if os.path.exists(config_dir) and os.path.isdir(config_dir):
+        key_path = os.path.join(config_dir, FILE_NAME_EK)
+    else:
+        key_path = FILE_NAME_EK
+
+    if not os.path.exists(key_path):
+        generate_key(key_path)
         
-    return open("secret.key", "rb").read()
+    with open(key_path, "rb") as f:
+        return f.read()
 
 def encrypt_file(source_path, dest_path=None, chunk_size=64*1024):
     """

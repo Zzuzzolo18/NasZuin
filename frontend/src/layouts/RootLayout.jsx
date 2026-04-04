@@ -163,7 +163,7 @@ export default function RootLayout() {
                         <span className="text-sm text-muted-foreground hidden sm:inline">Online</span>
                     </div>
                 </header>
-                <div className="flex-1 overflow-hidden p-6 flex flex-col">
+                <div className="flex-1 overflow-hidden flex flex-col p-6">
                     <Outlet />
                 </div>
             </main>
