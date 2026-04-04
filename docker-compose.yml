@@ -56,6 +56,7 @@ services:
       HDD_MOUNT_POINT: ${HDD_MOUNT_POINT:-/mnt/hdd1}
       BASE_STORAGE_PATH: ${BASE_STORAGE_PATH:-/mnt/nvme}
       DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,raspberrypi,raspberrypi.local}
       SECRET_KEY: ${NASZUIN_SECRET_KEY}
       ENCRYPTION_KEY: ${NASZUIN_ENCRYPTION_KEY}
       ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
