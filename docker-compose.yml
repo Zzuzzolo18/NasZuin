@@ -39,7 +39,7 @@ services:
     build: .
     container_name: naszuin_backend
     # Esegui le migrazioni e la creazione dell'admin prima di lanciare Gunicorn
-    command: bash -c "python manage.py migrate && python init_admin.py && gunicorn home_nas.wsgi:application --bind 0.0.0.0:8000"
+    command: bash -c "python manage.py migrate && python init_admin.py && gunicorn home_nas.wsgi:application --bind 0.0.0.0:8000 --timeout 3600"
     restart: always
     volumes:
       - nasconfig:/app/config
@@ -132,17 +132,17 @@ services:
       - /mnt/nvme/naszuin:/mnt/nvme
       - /mnt/hdd1/naszuin:/mnt/hdd1
     environment:
-      - DB_ENGINE= ${DB_ENGINE:-django.db.backends.postgresql}
-      - POSTGRES_DB= ${POSTGRES_DB:-naszuin}
-      - POSTGRES_USER= ${POSTGRES_USER:-nasuser}
-      - POSTGRES_PASSWORD= ${POSTGRES_PASSWORD:-naspassword}
-      - POSTGRES_HOST= ${POSTGRES_HOST:-naszuin-postgres} 
-      - SSD_MOUNT_POINT= ${SSD_MOUNT_POINT:-/mnt/nvme}
-      - HDD_MOUNT_POINT= ${HDD_MOUNT_POINT:-/mnt/hdd1}
-      - BASE_STORAGE_PATH= ${BASE_STORAGE_PATH:-/mnt/nvme}
-      - SECRET_KEY= ${NASZUIN_SECRET_KEY}
-      - ENCRYPTION_KEY= ${NASZUIN_ENCRYPTION_KEY}
-      - ENCRYPT_COLD_STORAGE= ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      POSTGRES_DB: ${POSTGRES_DB:-naszuin}
+      POSTGRES_USER: ${POSTGRES_USER:-nasuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
+      POSTGRES_HOST: ${POSTGRES_HOST:-naszuin-postgres}
+      SSD_MOUNT_POINT: ${SSD_MOUNT_POINT:-/mnt/nvme}
+      HDD_MOUNT_POINT: ${HDD_MOUNT_POINT:-/mnt/hdd1}
+      BASE_STORAGE_PATH: ${BASE_STORAGE_PATH:-/mnt/nvme}
+      SECRET_KEY: ${NASZUIN_SECRET_KEY}
+      ENCRYPTION_KEY: ${NASZUIN_ENCRYPTION_KEY}
+      ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
     networks:
       - home_network
     depends_on:

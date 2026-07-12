@@ -22,6 +22,9 @@ cryptography==46.0.4
 # System Monitoring
 psutil==7.2.2
 paramiko==3.4.0
+
+# Smart Home / IoT Devices
+tapo==0.9.0
 # Production Server
 waitress==2.1.2
 whitenoise==6.6.0

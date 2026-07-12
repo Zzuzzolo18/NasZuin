@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, FolderOpen, Settings as SettingsIcon, HardDrive, Menu, LogOut, Shield, Moon, Sun, X } from "lucide-react"
+import { LayoutDashboard, FolderOpen, Settings as SettingsIcon, HardDrive, Menu, LogOut, Shield, Moon, Sun, X, Router } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useState, useEffect } from "react"
@@ -63,6 +63,7 @@ export default function RootLayout() {
     const navItems = [
         ...(user?.is_staff ? [{ href: "/", icon: LayoutDashboard, label: "Dashboard" }] : []),
         { href: "/files", icon: FolderOpen, label: "File Manager" },
+        ...(user?.is_staff ? [{ href: "/devices", icon: Router, label: "Dispositivi" }] : []),
         { href: "/settings", icon: SettingsIcon, label: "Impostazioni" },
     ]
 

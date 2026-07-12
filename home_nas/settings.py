@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'two_factor',
     'axes',
     'authentication',
+    'devices',
     # 'core',
 ]
 
@@ -272,6 +273,11 @@ LOGGING = {
             'propagate': True,
         },
         'file_management': {
+            'handlers': ['console', 'file_tasks'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'devices': {
             'handlers': ['console', 'file_tasks'],
             'level': 'DEBUG',
             'propagate': False,

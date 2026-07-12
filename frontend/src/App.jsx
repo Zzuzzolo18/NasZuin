@@ -4,6 +4,7 @@ import RootLayout from "./layouts/RootLayout"
 import Dashboard from "./pages/Dashboard"
 import FileManager from "./pages/FileManager"
 import Settings from "./pages/Settings"
+import Devices from "./pages/Devices"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
 
@@ -28,6 +29,7 @@ function App() {
         <Route path="/" element={<RootLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="files" element={<FileManager />} />
+          <Route path="devices" element={<Devices />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Route>
@@ -38,3 +40,4 @@ function App() {
 }
 
 export default App
+

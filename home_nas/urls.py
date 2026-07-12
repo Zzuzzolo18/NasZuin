@@ -28,6 +28,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/files/', include('file_management.urls')),
     path('api/auth/', include('authentication.urls')),
+    path('api/devices/', include('devices.urls')),
     path('monitor/', include('monitor.urls')), # Moved from root to /monitor/
     # SPA Catch-all (must be last)
     re_path(r'^.*$', TemplateView.as_view(template_name='index.html')),
