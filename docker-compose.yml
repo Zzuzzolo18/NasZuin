@@ -205,3 +205,19 @@ services:
     restart: always
     networks:
       - home_network
+
+  # ================================
+  # HOME ASSISTANT STACK
+  # ================================
+  homeassistant:
+    container_name: homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    volumes:
+      - /mnt/hdd1/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    restart: unless-stopped
+    # Privileged e host network sono fortemente raccomandati da HA 
+    # per rilevare automaticamente i dispositivi in rete locale (mDNS, UPnP, ecc.)
+    privileged: true
+    network_mode: host
