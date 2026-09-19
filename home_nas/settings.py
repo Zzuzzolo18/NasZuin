@@ -39,6 +39,9 @@ DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# Local DDNS / Hostname to monitor
+DDNS_DOMAIN = os.getenv('DDNS_DOMAIN', 'raspberrypi').strip() or 'raspberrypi'
+
 
 # Application definition
 
@@ -128,7 +131,7 @@ else:
     default_db_path = BASE_DIR / 'db.sqlite3'
     if os.path.exists('/app/config'):
         default_db_path = '/app/config/db.sqlite3'
-        
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -278,6 +281,11 @@ LOGGING = {
             'propagate': False,
         },
         'devices': {
+            'handlers': ['console', 'file_tasks'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'monitor': {
             'handlers': ['console', 'file_tasks'],
             'level': 'DEBUG',
             'propagate': False,
