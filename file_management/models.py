@@ -22,6 +22,9 @@ class ManagedFile(models.Model):
     top_level_folder = models.CharField(max_length=255, null=True, blank=True) # To help with quick filtering if needed
     tier = models.ForeignKey(StorageTier, on_delete=models.PROTECT, related_name='files')
     is_encrypted = models.BooleanField(default=False)
+    encryption_iv = models.BinaryField(null=True, blank=True)
+    encrypted_dek = models.BinaryField(null=True, blank=True)
+    original_checksum = models.CharField(max_length=64, null=True, blank=True)
     owner = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_files')
     access_count = models.IntegerField(default=0)
     last_accessed = models.DateTimeField(auto_now=True)

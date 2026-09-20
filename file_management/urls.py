@@ -20,4 +20,5 @@ urlpatterns = [
     path('share/create/', views.create_share_link, name='create_share_link'),
     path('share/<str:token>/', views.access_share_link, name='access_share_link'),
     path('move/', views.trigger_move, name='trigger_move'),
+    path('decrypt/<int:file_id>/', views.trigger_decrypt, name='trigger_decrypt'),
 ]
