@@ -52,7 +52,8 @@ services:
       - ./demo_storage/cold:/mnt/hdd1
     environment:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
-      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.sqlite3}
+      DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
       POSTGRES_USER: ${POSTGRES_USER:-nasuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
@@ -84,7 +85,8 @@ services:
       - ./demo_storage/cold:/mnt/hdd1
     environment:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
-      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.sqlite3}
+      DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
       POSTGRES_USER: ${POSTGRES_USER:-nasuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
@@ -109,7 +111,8 @@ services:
       - nasconfig_demo:/app/config
     environment:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
-      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.sqlite3}
+      DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
       POSTGRES_USER: ${POSTGRES_USER:-nasuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
@@ -134,7 +137,8 @@ services:
       - ./demo_storage/hot:/mnt/nvme
       - ./demo_storage/cold:/mnt/hdd1
     environment:
-      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.sqlite3}
+      DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
       POSTGRES_USER: ${POSTGRES_USER:-nasuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}

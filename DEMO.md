@@ -29,13 +29,15 @@ docker compose -f docker-compose.demo.yml up -d
 
 Lo stack della Demo include i seguenti container isolati:
 
-1. **`naszuin_demo_frontend`**: Nginx web server che eroga l'interfaccia UI.
-2. **`naszuin_demo_backend`**: Backend Django Gunicorn con l'inizializzazione automatica dei dati demo (`init_demo`).
-3. **`naszuin_demo_postgres`**: Database relazionale per i metadati dei file, utenti e impostazioni.
+1. **`naszuin_demo_frontend`**: Nginx web server che eroga l'interfaccia UI (porta 80).
+2. **`naszuin_demo_backend`**: Backend Django Gunicorn con l'inizializzazione automatica dei dati demo (`wait_for_db` e `init_demo`).
+3. **`naszuin_demo_postgres`**: Database relazionale PostgreSQL per i metadati dei file, utenti e impostazioni.
 4. **`naszuin_demo_redis`**: Broker per le code di messaggi e task asincroni.
 5. **`naszuin_demo_celery_worker`**: Processo di background worker per l'elaborazione di scansioni e cifratura/spostamento file.
 6. **`naszuin_demo_celery_beat`**: Scheduler periodico per i task pianificati.
 7. **`naszuin_demo_sftp`**: Server SFTP standalone per il trasferimento dati sicuro sulla porta host `2223` (mappata internamente sulla `2222`).
+
+> **Nota Database in Demo**: Di default la demo utilizza SQLite condiviso nel volume di configurazione (`nasconfig_demo`) per garantire un avvio istantaneo e privo di race conditions di rete. È possibile commutare l'ambiente verso PostgreSQL impostando `DB_ENGINE=django.db.backends.postgresql` nell'ambiente.
 
 ---
 
@@ -59,7 +61,7 @@ Lo stack della Demo include i seguenti container isolati:
 ### 3. Server SFTP Integrato
 - **Funzionamento**: Permette di accedere direttamente alle cartelle di storage tramite qualsiasi client SFTP (FileZilla, Cyberduck, CLI).
 - **Verifica**:
-  - Connettiti via SFTP:
+  - Connettiti via SFTP sulla porta `2223`:
     ```bash
     sftp -P 2223 admin@localhost
     ```
