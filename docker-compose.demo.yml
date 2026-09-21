@@ -1,0 +1,161 @@
+# ================================
+# NASZUIN DEMO STACK
+# ================================
+# Per avviare la demo dell'applicazione:
+# docker compose -f docker-compose.demo.yml up -d
+#
+# Le cartelle di storage per simulare i livelli HOT e COLD
+# vengono generate automaticamente in:
+#   - ./demo_storage/hot  (simula SSD / NVMe)
+#   - ./demo_storage/cold (simula HDD / Cold Storage)
+
+volumes:
+  nasconfig_demo:
+  naszuin_pgdata_demo:
+
+networks:
+  naszuin_demo_network:
+    driver: bridge
+
+services:
+
+  naszuin-redis:
+    image: redis:7-alpine
+    container_name: naszuin_demo_redis
+    restart: always
+    networks:
+      - naszuin_demo_network
+
+  naszuin-postgres:
+    image: postgres:15-alpine
+    container_name: naszuin_demo_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-naszuin}
+      POSTGRES_USER: ${POSTGRES_USER:-nasuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
+    volumes:
+      - naszuin_pgdata_demo:/var/lib/postgresql/data
+    networks:
+      - naszuin_demo_network
+
+  naszuin-backend:
+    build: .
+    container_name: naszuin_demo_backend
+    command: bash -c "python manage.py wait_for_db && python manage.py migrate && python manage.py init_demo && gunicorn home_nas.wsgi:application --bind 0.0.0.0:8000 --timeout 3600"
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - nasconfig_demo:/app/config
+      - ./demo_storage/hot:/mnt/nvme
+      - ./demo_storage/cold:/mnt/hdd1
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      POSTGRES_DB: ${POSTGRES_DB:-naszuin}
+      POSTGRES_USER: ${POSTGRES_USER:-nasuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
+      POSTGRES_HOST: ${POSTGRES_HOST:-naszuin-postgres}
+      SSD_MOUNT_POINT: ${SSD_MOUNT_POINT:-/mnt/nvme}
+      HDD_MOUNT_POINT: ${HDD_MOUNT_POINT:-/mnt/hdd1}
+      BASE_STORAGE_PATH: ${BASE_STORAGE_PATH:-/mnt/nvme}
+      DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,raspberrypi,raspberrypi.local}
+      SECRET_KEY: ${NASZUIN_SECRET_KEY:-demo-secret-key-change-in-production-12345}
+      ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
+      ADMIN_USERNAME: ${NASZUIN_ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${NASZUIN_ADMIN_PASSWORD:-password}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@naszuin.demo}
+    networks:
+      - naszuin_demo_network
+    depends_on:
+      - naszuin-redis
+      - naszuin-postgres
+
+  naszuin-celery-worker:
+    build: .
+    container_name: naszuin_demo_celery_worker
+    command: celery -A home_nas worker -l info
+    restart: always
+    volumes:
+      - nasconfig_demo:/app/config
+      - ./demo_storage/hot:/mnt/nvme
+      - ./demo_storage/cold:/mnt/hdd1
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      POSTGRES_DB: ${POSTGRES_DB:-naszuin}
+      POSTGRES_USER: ${POSTGRES_USER:-nasuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
+      POSTGRES_HOST: ${POSTGRES_HOST:-naszuin-postgres}
+      SSD_MOUNT_POINT: ${SSD_MOUNT_POINT:-/mnt/nvme}
+      HDD_MOUNT_POINT: ${HDD_MOUNT_POINT:-/mnt/hdd1}
+      BASE_STORAGE_PATH: ${BASE_STORAGE_PATH:-/mnt/nvme}
+      SECRET_KEY: ${NASZUIN_SECRET_KEY:-demo-secret-key-change-in-production-12345}
+      ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
+    networks:
+      - naszuin_demo_network
+    depends_on:
+      - naszuin-redis
+      - naszuin-backend
+
+  naszuin-celery-beat:
+    build: .
+    container_name: naszuin_demo_celery_beat
+    command: celery -A home_nas beat -l info --schedule /app/config/celerybeat-schedule
+    restart: always
+    volumes:
+      - nasconfig_demo:/app/config
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      POSTGRES_DB: ${POSTGRES_DB:-naszuin}
+      POSTGRES_USER: ${POSTGRES_USER:-nasuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
+      POSTGRES_HOST: ${POSTGRES_HOST:-naszuin-postgres}
+      SECRET_KEY: ${NASZUIN_SECRET_KEY:-demo-secret-key-change-in-production-12345}
+      ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
+    networks:
+      - naszuin_demo_network
+    depends_on:
+      - naszuin-redis
+      - naszuin-backend
+
+  naszuin-sftp:
+    build: .
+    container_name: naszuin_demo_sftp
+    command: python manage.py run_sftp --port 2222 --keyfile /app/config/host.key
+    restart: always
+    ports:
+      - "2223:2222"
+    volumes:
+      - nasconfig_demo:/app/config
+      - ./demo_storage/hot:/mnt/nvme
+      - ./demo_storage/cold:/mnt/hdd1
+    environment:
+      DB_ENGINE: ${DB_ENGINE:-django.db.backends.postgresql}
+      POSTGRES_DB: ${POSTGRES_DB:-naszuin}
+      POSTGRES_USER: ${POSTGRES_USER:-nasuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-naspassword}
+      POSTGRES_HOST: ${POSTGRES_HOST:-naszuin-postgres}
+      SSD_MOUNT_POINT: ${SSD_MOUNT_POINT:-/mnt/nvme}
+      HDD_MOUNT_POINT: ${HDD_MOUNT_POINT:-/mnt/hdd1}
+      BASE_STORAGE_PATH: ${BASE_STORAGE_PATH:-/mnt/nvme}
+      SECRET_KEY: ${NASZUIN_SECRET_KEY:-demo-secret-key-change-in-production-12345}
+      ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
+    networks:
+      - naszuin_demo_network
+    depends_on:
+      - naszuin-backend
+
+  naszuin-frontend:
+    build: ./frontend
+    container_name: naszuin_demo_frontend
+    restart: always
+    ports:
+      - "80:80"
+    networks:
+      - naszuin_demo_network
+    depends_on:
+      - naszuin-backend
