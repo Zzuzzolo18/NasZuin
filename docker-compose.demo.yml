@@ -42,7 +42,7 @@ services:
   naszuin-backend:
     build: .
     container_name: naszuin_demo_backend
-    command: bash -c "python manage.py migrate && python manage.py init_demo && gunicorn home_nas.wsgi:application --bind 0.0.0.0:8000 --timeout 3600"
+    command: bash -c "python manage.py wait_for_db && python manage.py migrate && python manage.py init_demo && gunicorn home_nas.wsgi:application --bind 0.0.0.0:8000 --timeout 3600"
     restart: always
     ports:
       - "8000:8000"
@@ -128,7 +128,7 @@ services:
     command: python manage.py run_sftp --port 2222 --keyfile /app/config/host.key
     restart: always
     ports:
-      - "2222:2222"
+      - "2223:2222"
     volumes:
       - nasconfig_demo:/app/config
       - ./demo_storage/hot:/mnt/nvme

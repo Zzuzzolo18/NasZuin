@@ -21,7 +21,7 @@ docker compose -f docker-compose.demo.yml up -d
 - **URL Frontend**: `http://localhost` (o `http://<IP_HOST>`)
 - **Username Admin**: `admin`
 - **Password**: `password`
-- **SFTP Server**: `sftp://localhost:2222` (utente: `admin`, pass: `password`)
+- **SFTP Server**: `sftp://localhost:2223` (utente: `admin`, pass: `password`)
 
 ---
 
@@ -35,7 +35,7 @@ Lo stack della Demo include i seguenti container isolati:
 4. **`naszuin_demo_redis`**: Broker per le code di messaggi e task asincroni.
 5. **`naszuin_demo_celery_worker`**: Processo di background worker per l'elaborazione di scansioni e cifratura/spostamento file.
 6. **`naszuin_demo_celery_beat`**: Scheduler periodico per i task pianificati.
-7. **`naszuin_demo_sftp`**: Server SFTP standalone per il trasferimento dati sicuro sulla porta `2222`.
+7. **`naszuin_demo_sftp`**: Server SFTP standalone per il trasferimento dati sicuro sulla porta host `2223` (mappata internamente sulla `2222`).
 
 ---
 
@@ -61,7 +61,7 @@ Lo stack della Demo include i seguenti container isolati:
 - **Verifica**:
   - Connettiti via SFTP:
     ```bash
-    sftp -P 2222 admin@localhost
+    sftp -P 2223 admin@localhost
     ```
   - Inserisci la password `password`.
   - Esegui `ls` per navigare e scaricare/caricare file direttamente sullo storage montato.
