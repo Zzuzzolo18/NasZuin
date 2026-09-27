@@ -2,6 +2,7 @@ import os
 import zipfile
 import io
 import json
+import uuid
 from pathlib import Path
 from django.shortcuts import get_object_or_404, render
 from django.http import FileResponse, HttpResponseForbidden, Http404, JsonResponse, StreamingHttpResponse
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
+from .models import StorageEncryptionPolicy
 
 @csrf_exempt
 def register(request):
@@ -604,6 +606,8 @@ def scan_status(request):
             'task_id': task_id,
             'status': result.status,
         }
+        if result.state == 'PROGRESS' and isinstance(result.info, dict):
+            response['meta'] = result.info
 
         if result.ready():
             if result.successful():
@@ -615,6 +619,57 @@ def scan_status(request):
     except Exception as e:
         logger.error(f"Error checking task status {task_id}: {e}")
         return JsonResponse({'error': f'Could not check status: {str(e)}'}, status=500)
+
+
+@login_required
+def encryption_policy(request):
+    if not request.user.is_staff:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    if request.method not in ('GET', 'POST'):
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    policy = StorageEncryptionPolicy.get_solo()
+    if request.method == 'GET':
+        return JsonResponse({
+            'encrypt_cold_storage': policy.encrypt_cold_storage,
+            'task_id': policy.active_task_id or None,
+        })
+
+    try:
+        data = json.loads(request.body)
+        enabled = data.get('encrypt_cold_storage')
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON body'}, status=400)
+
+    if not isinstance(enabled, bool):
+        return JsonResponse({'error': 'encrypt_cold_storage must be a boolean'}, status=400)
+
+    from celery.result import AsyncResult
+    if policy.active_task_id and not AsyncResult(policy.active_task_id).ready():
+        return JsonResponse({'error': 'An encryption task is already running'}, status=409)
+
+    from .tasks import apply_encryption_policy
+    previous_value = policy.encrypt_cold_storage
+    task_id = uuid.uuid4().hex
+    policy.encrypt_cold_storage = enabled
+    policy.active_task_id = task_id
+    policy.save(update_fields=['encrypt_cold_storage', 'active_task_id', 'updated_at'])
+
+    try:
+        apply_encryption_policy.apply_async(args=[enabled], task_id=task_id)
+    except Exception as e:
+        policy.encrypt_cold_storage = previous_value
+        policy.active_task_id = ''
+        policy.save(update_fields=['encrypt_cold_storage', 'active_task_id', 'updated_at'])
+        logger.exception("Could not queue bulk encryption task")
+        return JsonResponse({'error': f'Could not queue encryption task: {e}'}, status=503)
+
+    return JsonResponse({
+        'encrypt_cold_storage': enabled,
+        'task_id': task_id,
+        'status': 'queued',
+    }, status=202)
 
 @login_required
 def delete_file(request, file_id):

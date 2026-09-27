@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Activity, HardDrive, Cpu, Thermometer, Clock, Database, RefreshCw, Loader2, CheckCircle2, XCircle, Archive } from "lucide-react"
+import { Activity, HardDrive, Cpu, Thermometer, Clock, Database, RefreshCw, Loader2, CheckCircle2, XCircle, Archive, LockKeyhole, UnlockKeyhole } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { apiRequest } from "@/lib/api"
 
@@ -12,8 +12,16 @@ export default function Dashboard() {
     const [scanMessage, setScanMessage] = useState('')
     const [moveStatus, setMoveStatus] = useState(null)
     const [moveMessage, setMoveMessage] = useState('')
+    const [encryptColdStorage, setEncryptColdStorage] = useState(true)
+    const [encryptionLoading, setEncryptionLoading] = useState(true)
+    const [encryptionSaving, setEncryptionSaving] = useState(false)
+    const [encryptionTaskId, setEncryptionTaskId] = useState(null)
+    const [encryptionStatus, setEncryptionStatus] = useState(null)
+    const [encryptionMessage, setEncryptionMessage] = useState('')
+    const [encryptionCanManage, setEncryptionCanManage] = useState(true)
     const pollRef = useRef(null)
     const movePollRef = useRef(null)
+    const encryptionPollRef = useRef(null)
 
     const fetchStats = async () => {
         try {
@@ -136,9 +144,108 @@ export default function Dashboard() {
         checkStatus()
     }
 
+    const pollEncryptionStatus = (taskId, encrypt) => {
+        sessionStorage.setItem('activeEncryptionTaskId', taskId)
+        const startedAt = Date.now()
+        let errorCount = 0
+
+        const checkStatus = async () => {
+            if (Date.now() - startedAt > 30 * 60 * 1000) {
+                setEncryptionStatus('failed')
+                setEncryptionMessage('Encryption task timed out. Check server logs.')
+                sessionStorage.removeItem('activeEncryptionTaskId')
+                return
+            }
+
+            try {
+                const result = await apiRequest(`/api/files/scan/status/?task_id=${taskId}`)
+                errorCount = 0
+                if (result.status === 'SUCCESS') {
+                    setEncryptionStatus('completed')
+                    setEncryptionMessage(result.result || 'Encryption task completed.')
+                    sessionStorage.removeItem('activeEncryptionTaskId')
+                    fetchStats()
+                    return
+                }
+                if (result.status === 'FAILURE') {
+                    setEncryptionStatus('failed')
+                    setEncryptionMessage(result.error || 'Encryption task failed.')
+                    sessionStorage.removeItem('activeEncryptionTaskId')
+                    return
+                }
+
+                setEncryptionStatus('running')
+                const progress = result.meta
+                setEncryptionMessage(progress
+                    ? `${encrypt ? 'Encrypting' : 'Decrypting'} files... ${progress.current}/${progress.total}`
+                    : `${encrypt ? 'Encrypting' : 'Decrypting'} files... (${result.status})`)
+            } catch (error) {
+                errorCount += 1
+                if (errorCount >= 5) {
+                    setEncryptionStatus('failed')
+                    setEncryptionMessage(`Lost connection while checking task status: ${error.message}`)
+                    sessionStorage.removeItem('activeEncryptionTaskId')
+                    return
+                }
+            }
+
+            encryptionPollRef.current = setTimeout(checkStatus, 3000)
+        }
+
+        checkStatus()
+    }
+
+    const queueEncryptionTask = async () => {
+        const action = encryptColdStorage ? 'encrypt' : 'decrypt'
+        const confirmation = encryptColdStorage
+            ? 'Encrypt all managed files in place? Files stay in their current storage tier.'
+            : 'Decrypt all managed files in place? Files stay in their current storage tier.'
+        if (!confirm(confirmation)) return
+
+        try {
+            setEncryptionSaving(true)
+            setEncryptionMessage(`Queuing ${action} task...`)
+            const data = await apiRequest('/api/files/encryption/', {
+                method: 'POST',
+                body: JSON.stringify({ encrypt_cold_storage: encryptColdStorage }),
+            })
+            setEncryptionTaskId(data.task_id)
+            setEncryptionStatus('queued')
+            setEncryptionMessage(data.status === 'queued' ? `Task queued to ${action} all files.` : 'Task accepted.')
+            pollEncryptionStatus(data.task_id, encryptColdStorage)
+        } catch (error) {
+            setEncryptionStatus('failed')
+            setEncryptionMessage(error.message || `Could not queue ${action} task.`)
+        } finally {
+            setEncryptionSaving(false)
+        }
+    }
+
     // Single useEffect for stats polling + resume active tasks
     useEffect(() => {
         fetchStats()
+
+        const loadEncryptionPolicy = async () => {
+            try {
+                const policy = await apiRequest('/api/files/encryption/')
+                setEncryptColdStorage(policy.encrypt_cold_storage)
+                if (policy.task_id) {
+                    setEncryptionTaskId(policy.task_id)
+                    setEncryptionStatus('running')
+                    pollEncryptionStatus(policy.task_id, policy.encrypt_cold_storage)
+                }
+            } catch (loadError) {
+                setEncryptionCanManage(false)
+                if (loadError.message === 'Permission denied') {
+                    setEncryptionMessage('Only administrators can manage storage encryption.')
+                } else {
+                    setEncryptionMessage(loadError.message || 'Could not load encryption settings.')
+                }
+            } finally {
+                setEncryptionLoading(false)
+            }
+        }
+        loadEncryptionPolicy()
 
         // Resume polling if there were active tasks before page refresh
         const savedScanId = sessionStorage.getItem('activeScanTaskId')
@@ -163,6 +270,7 @@ export default function Dashboard() {
             clearInterval(interval)
             if (pollRef.current) clearTimeout(pollRef.current)
             if (movePollRef.current) clearTimeout(movePollRef.current)
+            if (encryptionPollRef.current) clearTimeout(encryptionPollRef.current)
         }
     }, [])
 
@@ -295,6 +403,67 @@ export default function Dashboard() {
                     {(moveStatus === 'failed' || moveStatus === 'completed') && (
                         <button 
                             onClick={() => { setMoveStatus(null); setMoveMessage('') }}
+                            className="text-xs opacity-60 hover:opacity-100 transition-opacity"
+                        >
+                            Dismiss
+                        </button>
+                    )}
+                </div>
+            )}
+
+            <Card>
+                <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                    <div className="space-y-1">
+                        <CardTitle className="text-base">Cold Storage Encryption</CardTitle>
+                        <CardDescription>
+                            Set the policy for future archives, then apply it to all managed files. Files stay in their current tier.
+                        </CardDescription>
+                    </div>
+                    <label className="flex shrink-0 items-center gap-2 text-sm font-medium">
+                        <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-primary"
+                            checked={encryptColdStorage}
+                            disabled={encryptionLoading || !encryptionCanManage || encryptionStatus === 'queued' || encryptionStatus === 'running'}
+                            onChange={(event) => setEncryptColdStorage(event.target.checked)}
+                            aria-label="Encrypt files in cold storage"
+                        />
+                        {encryptColdStorage ? 'Enabled' : 'Disabled'}
+                    </label>
+                </CardHeader>
+                <CardContent className="flex flex-wrap items-center gap-3">
+                    <Button
+                        variant={encryptColdStorage ? 'default' : 'secondary'}
+                        size="sm"
+                        disabled={encryptionLoading || encryptionSaving || !encryptionCanManage || encryptionStatus === 'queued' || encryptionStatus === 'running'}
+                        onClick={queueEncryptionTask}
+                    >
+                        {encryptionSaving || encryptionStatus === 'queued' || encryptionStatus === 'running'
+                            ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            : encryptColdStorage
+                                ? <LockKeyhole className="mr-2 h-4 w-4" />
+                                : <UnlockKeyhole className="mr-2 h-4 w-4" />}
+                        {encryptColdStorage ? 'Encrypt all files' : 'Decrypt all files'}
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                        The task also updates the policy used by future HOT-to-COLD archives.
+                    </span>
+                </CardContent>
+            </Card>
+
+            {encryptionMessage && (
+                <div className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${
+                    encryptionStatus === 'failed' ? 'border-red-500/20 bg-red-500/10 text-red-500' :
+                    encryptionStatus === 'completed' ? 'border-green-500/20 bg-green-500/10 text-green-500' :
+                    'border-amber-500/20 bg-amber-500/10 text-amber-700'
+                }`}>
+                    {encryptionStatus === 'failed' && <XCircle className="h-4 w-4 shrink-0" />}
+                    {encryptionStatus === 'completed' && <CheckCircle2 className="h-4 w-4 shrink-0" />}
+                    {(encryptionStatus === 'queued' || encryptionStatus === 'running' || encryptionSaving) && <Loader2 className="h-4 w-4 shrink-0 animate-spin" />}
+                    <span className="flex-1">{encryptionMessage}</span>
+                    {(encryptionStatus === 'failed' || encryptionStatus === 'completed') && (
+                        <button
+                            onClick={() => { setEncryptionStatus(null); setEncryptionMessage('') }}
                             className="text-xs opacity-60 hover:opacity-100 transition-opacity"
                         >
                             Dismiss

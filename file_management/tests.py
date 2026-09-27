@@ -1,15 +1,18 @@
 import os
 import shutil
 import tempfile
+from unittest.mock import patch
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from file_management.models import StorageTier, ManagedFile, SharedLink
+from file_management.models import StorageTier, ManagedFile, SharedLink, StorageEncryptionPolicy
 from file_management.utils import (
     generate_dek, encrypt_dek, decrypt_dek,
     encrypt_file, decrypt_file, calculate_sha256, decrypt_stream
 )
-from file_management.tasks import encrypt_file_task, decrypt_file_task, move_old_files_to_hdd
+from file_management.tasks import (
+    apply_encryption_policy, encrypt_file_task, decrypt_file_task, move_old_files_to_hdd,
+)
 
 
 class EnvelopeEncryptionUtilsTest(TestCase):
@@ -142,6 +145,76 @@ class ReversibleEncryptionCeleryTasksTest(TestCase):
 
         with self.assertRaises(ValueError):
             decrypt_file_task(self.managed_file.id)
+
+    def test_bulk_encryption_policy_task_round_trip(self):
+        encrypted_result = apply_encryption_policy.run(True)
+        self.assertIn('Encrypted 1 files', encrypted_result)
+        self.managed_file.refresh_from_db()
+        self.assertTrue(self.managed_file.is_encrypted)
+
+        decrypted_result = apply_encryption_policy.run(False)
+        self.assertIn('Decrypted 1 files', decrypted_result)
+        self.managed_file.refresh_from_db()
+        self.assertFalse(self.managed_file.is_encrypted)
+        with open(os.path.join(self.hot_mount, self.managed_file.relative_path), 'rb') as file:
+            self.assertEqual(file.read(), self.file_content)
+
+    def test_bulk_task_keeps_hot_symlink_valid_for_cold_files(self):
+        cold_rel_path = self.rel_path
+        cold_path = os.path.join(self.cold_mount, cold_rel_path)
+        os.makedirs(os.path.dirname(cold_path), exist_ok=True)
+        os.replace(self.full_path, cold_path)
+        os.symlink(cold_path, self.full_path)
+        self.managed_file.tier = self.cold_tier
+        self.managed_file.save(update_fields=['tier'])
+
+        apply_encryption_policy.run(True)
+        self.managed_file.refresh_from_db()
+        encrypted_path = os.path.join(self.cold_mount, self.managed_file.relative_path)
+        self.assertTrue(os.path.islink(self.full_path))
+        self.assertEqual(os.path.realpath(self.full_path), encrypted_path)
+
+        apply_encryption_policy.run(False)
+        self.managed_file.refresh_from_db()
+        decrypted_path = os.path.join(self.cold_mount, self.managed_file.relative_path)
+        self.assertTrue(os.path.islink(self.full_path))
+        self.assertEqual(os.path.realpath(self.full_path), decrypted_path)
+        with open(self.full_path, 'rb') as file:
+            self.assertEqual(file.read(), self.file_content)
+
+    def test_move_task_uses_saved_policy_for_future_archives(self):
+        StorageEncryptionPolicy.objects.create(encrypt_cold_storage=False)
+
+        result = move_old_files_to_hdd(age_days=0)
+
+        self.assertIn('Moved 1 files', result)
+        self.managed_file.refresh_from_db()
+        self.assertEqual(self.managed_file.tier, self.cold_tier)
+        self.assertFalse(self.managed_file.is_encrypted)
+        cold_path = os.path.join(self.cold_mount, self.managed_file.relative_path)
+        self.assertTrue(os.path.exists(cold_path))
+        with open(cold_path, 'rb') as file:
+            self.assertEqual(file.read(), self.file_content)
+
+    def test_encryption_policy_api_persists_setting_and_queues_task(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=['is_staff'])
+
+        with patch('file_management.tasks.apply_encryption_policy.apply_async') as enqueue:
+            response = self.client.post(
+                '/api/files/encryption/',
+                data='{"encrypt_cold_storage": false}',
+                content_type='application/json',
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertFalse(StorageEncryptionPolicy.get_solo().encrypt_cold_storage)
+        self.assertTrue(StorageEncryptionPolicy.get_solo().active_task_id)
+        enqueue.assert_called_once()
+
+    def test_encryption_policy_api_requires_staff(self):
+        response = self.client.get('/api/files/encryption/')
+        self.assertEqual(response.status_code, 403)
 
 
 class UploadPathStructureTest(TestCase):

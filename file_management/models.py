@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 import uuid
 from django.utils import timezone
 
@@ -50,3 +51,20 @@ class SharedLink(models.Model):
 
     def __str__(self):
         return f"Share Link for {self.file.name}"
+
+
+class StorageEncryptionPolicy(models.Model):
+    encrypt_cold_storage = models.BooleanField(default=True)
+    active_task_id = models.CharField(max_length=255, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get_solo(cls):
+        policy, _ = cls.objects.get_or_create(
+            pk=1,
+            defaults={'encrypt_cold_storage': settings.ENCRYPT_COLD_STORAGE},
+        )
+        return policy
+
+    def __str__(self):
+        return f"Cold storage encryption: {self.encrypt_cold_storage}"

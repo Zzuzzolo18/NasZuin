@@ -23,6 +23,8 @@ services:
     image: redis:7-alpine
     container_name: naszuin_demo_redis
     restart: always
+    ports:
+      - "${DEMO_DOCKER_GATEWAY_IP:-172.17.0.1}:6379:6379"
     networks:
       - naszuin_demo_network
 
@@ -42,7 +44,7 @@ services:
   naszuin-backend:
     build: .
     container_name: naszuin_demo_backend
-    command: bash -c "python manage.py wait_for_db && python manage.py migrate && python manage.py init_demo && gunicorn home_nas.wsgi:application --bind 0.0.0.0:8000 --timeout 3600"
+    command: bash -c "python manage.py migrate && python init_admin.py && python manage.py init_tiers && gunicorn home_nas.wsgi:application --bind 0.0.0.0:8000 --timeout 3600"
     restart: always
     ports:
       - "8000:8000"
@@ -51,7 +53,8 @@ services:
       - ./demo_storage/hot:/mnt/nvme
       - ./demo_storage/cold:/mnt/hdd1
     environment:
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://host.docker.internal:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://host.docker.internal:6379/0}
       DB_ENGINE: ${DEMO_DB_ENGINE:-django.db.backends.sqlite3}
       DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
@@ -71,6 +74,8 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@naszuin.demo}
     networks:
       - naszuin_demo_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - naszuin-redis
       - naszuin-postgres
@@ -85,7 +90,8 @@ services:
       - ./demo_storage/hot:/mnt/nvme
       - ./demo_storage/cold:/mnt/hdd1
     environment:
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://host.docker.internal:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://host.docker.internal:6379/0}
       DB_ENGINE: ${DEMO_DB_ENGINE:-django.db.backends.sqlite3}
       DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
@@ -99,6 +105,8 @@ services:
       ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
     networks:
       - naszuin_demo_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - naszuin-redis
       - naszuin-backend
@@ -111,7 +119,8 @@ services:
     volumes:
       - nasconfig_demo:/app/config
     environment:
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://host.docker.internal:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://host.docker.internal:6379/0}
       DB_ENGINE: ${DEMO_DB_ENGINE:-django.db.backends.sqlite3}
       DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
@@ -122,6 +131,8 @@ services:
       ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
     networks:
       - naszuin_demo_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - naszuin-redis
       - naszuin-backend

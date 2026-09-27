@@ -1,5 +1,5 @@
 from celery import shared_task
-from .models import StorageTier, ManagedFile
+from .models import StorageTier, ManagedFile, StorageEncryptionPolicy
 from .utils import (
     encrypt_file, decrypt_file, generate_dek, encrypt_dek, decrypt_dek,
     calculate_sha256, decrypt_stream
@@ -9,7 +9,6 @@ import shutil
 from datetime import timedelta
 from django.utils import timezone
 from django.db.utils import OperationalError
-from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -136,7 +135,7 @@ def move_old_files_to_hdd(age_days=30):
         for f in files_to_move:
             source_path = os.path.join(hot_tier.mount_point, f.relative_path)
 
-            use_encryption = getattr(settings, 'ENCRYPT_COLD_STORAGE', True)
+            use_encryption = StorageEncryptionPolicy.get_solo().encrypt_cold_storage
 
             if use_encryption:
                 dest_rel_path = f.relative_path + '.enc' if not f.relative_path.endswith('.enc') else f.relative_path
@@ -219,9 +218,17 @@ def encrypt_file_task(file_id):
         _, dek = encrypt_file(source_path, tmp_dest_path)
         encrypted_dek, nonce = encrypt_dek(dek)
 
-        if os.path.exists(source_path):
+        os.replace(tmp_dest_path, dest_path)
+        if source_path != dest_path and os.path.exists(source_path):
             os.remove(source_path)
-        os.rename(tmp_dest_path, dest_path)
+
+        hot_tier = StorageTier.objects.filter(type='HOT').first()
+        if hot_tier and managed_file.tier.type == 'COLD':
+            hot_rel_path = managed_file.relative_path[:-4] if managed_file.relative_path.endswith('.enc') else managed_file.relative_path
+            hot_link = os.path.join(hot_tier.mount_point, hot_rel_path)
+            if os.path.islink(hot_link):
+                os.unlink(hot_link)
+                os.symlink(dest_path, hot_link)
 
         managed_file.is_encrypted = True
         managed_file.encrypted_dek = encrypted_dek
@@ -283,14 +290,14 @@ def decrypt_file_task(file_id):
         if source_path != dest_path and os.path.exists(source_path):
             os.remove(source_path)
 
-        # Update symlinks on HOT tier if necessary
+        # Keep the logical HOT-tier path pointed at the current COLD-tier file.
         hot_tier = StorageTier.objects.filter(type='HOT').first()
         if hot_tier and managed_file.tier.type == 'COLD':
-            old_symlink = os.path.join(hot_tier.mount_point, managed_file.relative_path)
-            if os.path.islink(old_symlink):
-                os.unlink(old_symlink)
-                new_symlink = os.path.join(hot_tier.mount_point, dest_rel_path)
-                os.symlink(dest_path, new_symlink)
+            hot_rel_path = managed_file.relative_path[:-4] if managed_file.relative_path.endswith('.enc') else managed_file.relative_path
+            hot_link = os.path.join(hot_tier.mount_point, hot_rel_path)
+            if os.path.islink(hot_link):
+                os.unlink(hot_link)
+                os.symlink(dest_path, hot_link)
 
         # Update DB State to plain text
         managed_file.is_encrypted = False
@@ -304,3 +311,61 @@ def decrypt_file_task(file_id):
     except Exception as e:
         logger.exception(f"Error in decrypt_file_task for file {file_id}")
         raise e
+
+
+@shared_task(bind=True, acks_late=True)
+def apply_encryption_policy(self, encrypt):
+    """Apply the selected encryption state to every managed file."""
+    target_encrypted = bool(encrypt)
+    candidates = ManagedFile.objects.filter(is_encrypted=not target_encrypted)
+    total = candidates.count()
+    processed = 0
+    failed = 0
+    last_id = 0
+    task_id = self.request.id
+    operation = encrypt_file_task if target_encrypted else decrypt_file_task
+
+    try:
+        while True:
+            file_ids = list(
+                candidates.filter(pk__gt=last_id)
+                .order_by('pk')
+                .values_list('pk', flat=True)[:100]
+            )
+            if not file_ids:
+                break
+
+            for file_id in file_ids:
+                last_id = file_id
+                try:
+                    operation.run(file_id)
+                    processed += 1
+                except Exception:
+                    failed += 1
+                    logger.exception("Bulk encryption operation failed for file %s", file_id)
+
+                if task_id:
+                    self.update_state(state='PROGRESS', meta={
+                        'current': processed + failed,
+                        'total': total,
+                        'processed': processed,
+                        'failed': failed,
+                        'encrypt': target_encrypted,
+                    })
+
+        if failed:
+            raise RuntimeError(
+                f"{'Encryption' if target_encrypted else 'Decryption'} finished with "
+                f"{failed} errors; {processed} files processed."
+            )
+
+        return (
+            f"{'Encrypted' if target_encrypted else 'Decrypted'} {processed} files."
+            if processed else "No files required an encryption change."
+        )
+    finally:
+        if task_id:
+            StorageEncryptionPolicy.objects.filter(
+                pk=1,
+                active_task_id=task_id,
+            ).update(active_task_id='')
