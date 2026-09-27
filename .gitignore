@@ -60,3 +60,4 @@ secret.key
 logs/
 ssh_run.py
 upload.py
+demo_storage/*
