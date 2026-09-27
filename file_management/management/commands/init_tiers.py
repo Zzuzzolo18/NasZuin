@@ -6,9 +6,9 @@ class Command(BaseCommand):
     help = 'Initialize default storage tiers (Hot and Cold)'
 
     def handle(self, *args, **options):
-        # Default paths - should be configured via env vars in production
-        hot_path = os.getenv('NAS_SSD_MOUNT', '/mnt/ssd')
-        cold_path = os.getenv('NAS_HDD_MOUNT', '/mnt/hdd')
+        # Default paths - fallback to SSD_MOUNT_POINT / HDD_MOUNT_POINT if set, or local demo_storage paths
+        hot_path = os.getenv('SSD_MOUNT_POINT') or os.getenv('NAS_SSD_MOUNT') or './demo_storage/hot'
+        cold_path = os.getenv('HDD_MOUNT_POINT') or os.getenv('NAS_HDD_MOUNT') or './demo_storage/cold'
 
         hot_tier, created = StorageTier.objects.get_or_create(
             name='SSD_Hot',
