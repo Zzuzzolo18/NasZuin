@@ -37,7 +37,7 @@ Lo stack della Demo include i seguenti container isolati:
 6. **`naszuin_demo_celery_beat`**: Scheduler periodico per i task pianificati.
 7. **`naszuin_demo_sftp`**: Server SFTP standalone per il trasferimento dati sicuro sulla porta host `2223` (mappata internamente sulla `2222`).
 
-> **Nota Database in Demo**: Di default la demo utilizza SQLite condiviso nel volume di configurazione (`nasconfig_demo`) per garantire un avvio istantaneo e privo di race conditions di rete. È possibile commutare l'ambiente verso PostgreSQL impostando `DB_ENGINE=django.db.backends.postgresql` nell'ambiente.
+> **Nota Database in Demo**: Di default la demo utilizza SQLite condiviso nel volume di configurazione (`nasconfig_demo`) per evitare dipendenze dalla rete tra container all'avvio. Per selezionare PostgreSQL impostare `DEMO_DB_ENGINE=django.db.backends.postgresql` nell'ambiente; il backend deve poter raggiungere il database via TCP.
 
 ---
 

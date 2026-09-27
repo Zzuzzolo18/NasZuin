@@ -220,8 +220,12 @@ CSP_IMG_SRC = ("'self'", "data:")
 CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com")
 
 # CSRF Configuration
-CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://desktop-il2c17t.tail63adca.ts.net:5173', 'http://192.168.1.XXX',        # IP locale del Pi
-            'http://raspberrypi.tail63adca.ts.net','https://raspberrypi.tail63adca.ts.net','http://raspberrypi' ] # Tailscale (se usato)]
+CSRF_TRUSTED_ORIGINS = os.getenv(
+    'CSRF_TRUSTED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173,http://desktop-il2c17t.tail63adca.ts.net:5173,'
+    'http://192.168.1.XXX,http://raspberrypi.tail63adca.ts.net,https://raspberrypi.tail63adca.ts.net,'
+    'http://raspberrypi,http://localhost:80,http://127.0.0.1:80,https://*.app.github.dev',
+).split(',')
 
 # Secure Cookies (Enable in production with HTTPS)
 # SESSION_COOKIE_SECURE = True

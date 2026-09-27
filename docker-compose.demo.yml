@@ -52,7 +52,7 @@ services:
       - ./demo_storage/cold:/mnt/hdd1
     environment:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
-      DB_ENGINE: ${DB_ENGINE:-django.db.backends.sqlite3}
+      DB_ENGINE: ${DEMO_DB_ENGINE:-django.db.backends.sqlite3}
       DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
       POSTGRES_USER: ${POSTGRES_USER:-nasuser}
@@ -62,7 +62,8 @@ services:
       HDD_MOUNT_POINT: ${HDD_MOUNT_POINT:-/mnt/hdd1}
       BASE_STORAGE_PATH: ${BASE_STORAGE_PATH:-/mnt/nvme}
       DEBUG: ${DEBUG:-True}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,raspberrypi,raspberrypi.local}
+      ALLOWED_HOSTS: ${DEMO_ALLOWED_HOSTS:-localhost,127.0.0.1,raspberrypi,raspberrypi.local,.app.github.dev}
+      CSRF_TRUSTED_ORIGINS: ${DEMO_CSRF_TRUSTED_ORIGINS:-http://localhost,http://localhost:80,http://127.0.0.1,http://127.0.0.1:80,https://*.app.github.dev}
       SECRET_KEY: ${NASZUIN_SECRET_KEY:-demo-secret-key-change-in-production-12345}
       ENCRYPT_COLD_STORAGE: ${NASZUIN_ENCRYPT_COLD_STORAGE:-True}
       ADMIN_USERNAME: ${NASZUIN_ADMIN_USERNAME:-admin}
@@ -85,7 +86,7 @@ services:
       - ./demo_storage/cold:/mnt/hdd1
     environment:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
-      DB_ENGINE: ${DB_ENGINE:-django.db.backends.sqlite3}
+      DB_ENGINE: ${DEMO_DB_ENGINE:-django.db.backends.sqlite3}
       DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
       POSTGRES_USER: ${POSTGRES_USER:-nasuser}
@@ -111,7 +112,7 @@ services:
       - nasconfig_demo:/app/config
     environment:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://naszuin-redis:6379/0}
-      DB_ENGINE: ${DB_ENGINE:-django.db.backends.sqlite3}
+      DB_ENGINE: ${DEMO_DB_ENGINE:-django.db.backends.sqlite3}
       DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
       POSTGRES_USER: ${POSTGRES_USER:-nasuser}
@@ -137,7 +138,7 @@ services:
       - ./demo_storage/hot:/mnt/nvme
       - ./demo_storage/cold:/mnt/hdd1
     environment:
-      DB_ENGINE: ${DB_ENGINE:-django.db.backends.sqlite3}
+      DB_ENGINE: ${DEMO_DB_ENGINE:-django.db.backends.sqlite3}
       DB_PATH: ${DB_PATH:-/app/config/db.sqlite3}
       POSTGRES_DB: ${POSTGRES_DB:-naszuin}
       POSTGRES_USER: ${POSTGRES_USER:-nasuser}
@@ -159,6 +160,8 @@ services:
     restart: always
     ports:
       - "80:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - naszuin_demo_network
     depends_on:
