@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 import uuid
 from django.utils import timezone
 
@@ -22,6 +23,9 @@ class ManagedFile(models.Model):
     top_level_folder = models.CharField(max_length=255, null=True, blank=True) # To help with quick filtering if needed
     tier = models.ForeignKey(StorageTier, on_delete=models.PROTECT, related_name='files')
     is_encrypted = models.BooleanField(default=False)
+    encryption_iv = models.BinaryField(null=True, blank=True)
+    encrypted_dek = models.BinaryField(null=True, blank=True)
+    original_checksum = models.CharField(max_length=64, null=True, blank=True)
     owner = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_files')
     access_count = models.IntegerField(default=0)
     last_accessed = models.DateTimeField(auto_now=True)
@@ -47,3 +51,20 @@ class SharedLink(models.Model):
 
     def __str__(self):
         return f"Share Link for {self.file.name}"
+
+
+class StorageEncryptionPolicy(models.Model):
+    encrypt_cold_storage = models.BooleanField(default=True)
+    active_task_id = models.CharField(max_length=255, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get_solo(cls):
+        policy, _ = cls.objects.get_or_create(
+            pk=1,
+            defaults={'encrypt_cold_storage': settings.ENCRYPT_COLD_STORAGE},
+        )
+        return policy
+
+    def __str__(self):
+        return f"Cold storage encryption: {self.encrypt_cold_storage}"

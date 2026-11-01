@@ -39,6 +39,9 @@ DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# Local DDNS / Hostname to monitor
+DDNS_DOMAIN = os.getenv('DDNS_DOMAIN', 'raspberrypi').strip() or 'raspberrypi'
+
 
 # Application definition
 
@@ -128,7 +131,7 @@ else:
     default_db_path = BASE_DIR / 'db.sqlite3'
     if os.path.exists('/app/config'):
         default_db_path = '/app/config/db.sqlite3'
-        
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -194,7 +197,7 @@ STATICFILES_DIRS = [
 
 # Celery Configuration Options
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -217,8 +220,12 @@ CSP_IMG_SRC = ("'self'", "data:")
 CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com")
 
 # CSRF Configuration
-CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://desktop-il2c17t.tail63adca.ts.net:5173', 'http://192.168.1.XXX',        # IP locale del Pi
-            'http://raspberrypi.tail63adca.ts.net','https://raspberrypi.tail63adca.ts.net','http://raspberrypi' ] # Tailscale (se usato)]
+CSRF_TRUSTED_ORIGINS = os.getenv(
+    'CSRF_TRUSTED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173,http://desktop-il2c17t.tail63adca.ts.net:5173,'
+    'http://192.168.1.XXX,http://raspberrypi.tail63adca.ts.net,https://raspberrypi.tail63adca.ts.net,'
+    'http://raspberrypi,http://localhost:80,http://127.0.0.1:80,https://*.app.github.dev',
+).split(',')
 
 # Secure Cookies (Enable in production with HTTPS)
 # SESSION_COOKIE_SECURE = True
@@ -278,6 +285,11 @@ LOGGING = {
             'propagate': False,
         },
         'devices': {
+            'handlers': ['console', 'file_tasks'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'monitor': {
             'handlers': ['console', 'file_tasks'],
             'level': 'DEBUG',
             'propagate': False,

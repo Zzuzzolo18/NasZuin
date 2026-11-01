@@ -30,4 +30,8 @@ app.conf.beat_schedule = {
         'schedule': crontab(hour=2, minute=0),
         'args': (5,), # age_days=5
     },
+    'check-dns-resolution-6h': {
+        'task': 'monitor.tasks.check_dns_resolution',
+        'schedule': crontab(minute=0, hour='*/6'),
+    },
 }
